@@ -41,6 +41,9 @@
 /************************************************************************/
 /* constants                                                            */
 /************************************************************************/
+//flags
+volatile char but_flag;
+
 
 /************************************************************************/
 /* variaveis globais                                                    */
@@ -51,13 +54,12 @@
 /************************************************************************/
 void io_init(void);
 void pisca_led(int n, int t);
+void but_callBack(void);
 
 /************************************************************************/
 /* handler / callbacks                                                  */
 /************************************************************************/
 
-//flags
-volatile char but_flag;
 
 /*
  * Exemplo de callback para o botao, sempre que acontecer
@@ -67,7 +69,11 @@ volatile char but_flag;
  * !! pois nao se deve usar delays dentro de interrupcoes    !!
  */
 void but_callBack(void){
-	but_flag = 1;
+	  if (pio_get(BUT_PIO, PIO_INPUT,BUT_IDX_MASK)){
+			but_flag = 1;
+		  } else{
+			but_flag = 0;
+	  }
 }
 
 /************************************************************************/
@@ -108,7 +114,7 @@ void io_init(void)
   pio_handler_set(BUT_PIO,
                   BUT_PIO_ID,
                   BUT_IDX_MASK,
-                  PIO_IT_RISE_EDGE,
+                  PIO_IT_EDGE,
                   but_callBack);
 
   // Ativa interrupção e limpa primeira IRQ gerada na ativacao
