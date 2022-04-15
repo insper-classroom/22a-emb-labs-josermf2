@@ -8,3 +8,5 @@
 * LAB2: PIO-DRIVER (04/03) :heavy_check_mark: 
 * LAB3: PIO-IRQ (11/03) :heavy_check_mark:
 * LAB4: Lab4-TC-RTC-RTT (17/03) :heavy_check_mark:
+* LAB5: Lab5-HC-SR04 (15/04) :heavy_check_mark:
+* LAB6: Lab6-RTOS (18/04) :clock5: 
