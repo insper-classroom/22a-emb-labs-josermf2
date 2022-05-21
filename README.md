@@ -11,4 +11,4 @@
 * LAB5: Lab5-HC-SR04 (15/04) :heavy_check_mark:
 * LAB6: Lab6-RTOS (18/04) :clock5: 
 * LAB6: Lab7-RTOS-TFT-LCD-LVGL (20/05) :heavy_check_mark: 
-* LAB6: Lab8-RTOS-Mutex (27/04) :clock5: 
+* LAB6: Lab8-RTOS-Mutex (27/04) :heavy_check_mark: 
