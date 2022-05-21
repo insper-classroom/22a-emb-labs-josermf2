@@ -73,6 +73,8 @@ static lv_obj_t * labelSetValue;
 static lv_obj_t * labelClock;
 static lv_style_t style;
 
+SemaphoreHandle_t xSemaphoreTime;
+
 volatile char flag_rtc_alarm = 0;
 
 void RTC_Handler(void) {
@@ -81,12 +83,14 @@ void RTC_Handler(void) {
 	/* seccond tick */
 	if ((ul_status & RTC_SR_SEC) == RTC_SR_SEC) {
 		// o código para irq de segundo vem aqui
+		BaseType_t xHigherPriorityTaskWoken = pdTRUE;
+		xSemaphoreGiveFromISR(xSemaphoreTime, &xHigherPriorityTaskWoken);
 	}
 	
 	/* Time or date alarm */
 	if ((ul_status & RTC_SR_ALARM) == RTC_SR_ALARM) {
 		// o código para irq de alame vem aqui
-		flag_rtc_alarm = 1;
+		
 	}
 
 	rtc_clear_status(RTC, RTC_SCCR_SECCLR);
@@ -97,6 +101,26 @@ void RTC_Handler(void) {
 	rtc_clear_status(RTC, RTC_SCCR_TDERRCLR);
 }
 
+void RTC_init(Rtc *rtc, uint32_t id_rtc, calendar t, uint32_t irq_type) {
+	/* Configura o PMC */
+	pmc_enable_periph_clk(ID_RTC);
+
+	/* Default RTC configuration, 24-hour mode */
+	rtc_set_hour_mode(rtc, 0);
+
+	/* Configura data e hora manualmente */
+	rtc_set_date(rtc, t.year, t.month, t.day, t.week);
+	rtc_set_time(rtc, t.hour, t.minute, t.second);
+
+	/* Configure RTC interrupts */
+	NVIC_DisableIRQ(id_rtc);
+	NVIC_ClearPendingIRQ(id_rtc);
+	NVIC_SetPriority(id_rtc, 4);
+	NVIC_EnableIRQ(id_rtc);
+
+	/* Ativa interrupcao via alarme */
+	rtc_enable_interrupt(rtc,  irq_type);
+}
 
 /************************************************************************/
 /* callbacks                                                            */
@@ -145,6 +169,7 @@ static void event_handler(lv_event_t * e) {
 		LV_LOG_USER("Toggled");
 	}
 }
+
 
 void lv_ex_btn_1(void) {
 	lv_obj_t * label;
@@ -257,26 +282,28 @@ static void task_lcd(void *pvParameters) {
 }
 
 static void task_rtc(void *pvParameters) {
-	calendar rtc_initial = {2020, 03, 19, 11, 15, 21 ,1};
-	RTC_init(RTC, ID_RTC, rtc_initial, RTC_IER_ALREN);
-
-
-	uint32_t current_hour_draw, current_min_draw, current_sec_draw;
+	calendar rtc_initial = {2022, 5, 20, 13, 21, 34, 0};
+	RTC_init(RTC, ID_RTC, rtc_initial, RTC_IER_ALREN | RTC_IER_SECEN);
+	uint32_t current_hour, current_min, current_sec;
+	
+	int cont = 0;
 
 	for (;;)  {
-		char hour[128];
-		char minute[128];
-		char second[128];
+		
+		if (xSemaphoreTake(xSemaphoreTime, 1000)) {
+			rtc_get_time(RTC, &current_hour, &current_min, &current_sec);
 			
-		rtc_get_time(RTC, &current_hour_draw, &current_min_draw, &current_sec_draw);
-				
-		sprintf(hour, "%d", current_hour_draw);
-		sprintf(minute, "%d", current_min_draw);
-		if (current_sec_draw < 10) {
-			sprintf(second, "0%d", current_sec_draw);
-		} else {
-			sprintf(second, "%d", current_sec_draw);
+			if (cont == 0){
+				lv_label_set_text_fmt(labelClock, "%02d:%02d", current_hour, current_min);
+				cont = 1;
+			}
+			else if (cont == 1){
+				lv_label_set_text_fmt(labelClock, "%02d %02d", current_hour, current_min);
+				cont = 0;
+			}
 		}
+		
+		vTaskDelay(50);
 	}
 }
 
@@ -359,26 +386,7 @@ void configure_lvgl(void) {
 	lv_indev_t * my_indev = lv_indev_drv_register(&indev_drv);
 }
 
-void RTC_init(Rtc *rtc, uint32_t id_rtc, calendar t, uint32_t irq_type) {
-	/* Configura o PMC */
-	pmc_enable_periph_clk(ID_RTC);
 
-	/* Default RTC configuration, 24-hour mode */
-	rtc_set_hour_mode(rtc, 0);
-
-	/* Configura data e hora manualmente */
-	rtc_set_date(rtc, t.year, t.month, t.day, t.week);
-	rtc_set_time(rtc, t.hour, t.minute, t.second);
-
-	/* Configure RTC interrupts */
-	NVIC_DisableIRQ(id_rtc);
-	NVIC_ClearPendingIRQ(id_rtc);
-	NVIC_SetPriority(id_rtc, 4);
-	NVIC_EnableIRQ(id_rtc);
-
-	/* Ativa interrupcao via alarme */
-	rtc_enable_interrupt(rtc,  irq_type);
-}
 
 /************************************************************************/
 /* main                                                                 */
@@ -393,6 +401,12 @@ int main(void) {
 	configure_lcd();
 	configure_touch();
 	configure_lvgl();
+	
+	xSemaphoreTime = xSemaphoreCreateBinary();
+	 if (xSemaphoreTime == NULL){
+		 printf("falha em criar o semaforo \n");
+
+	 }
 
 	/* Create task to control oled */
 	if (xTaskCreate(task_lcd, "LCD", TASK_LCD_STACK_SIZE, NULL, TASK_LCD_STACK_PRIORITY, NULL) != pdPASS) {
